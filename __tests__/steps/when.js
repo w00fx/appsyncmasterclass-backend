@@ -48,6 +48,22 @@ const we_invoke_getImageUploadUrl = async (username, extension, contentType) => 
   return await handler(event, context)
 }
 
+const we_invoke_tweet = async (username, text) => {
+  const handler = require('../../functions/tweet').handler
+
+  const context = {}
+  const event = {
+    identity: {
+      username
+    },
+    arguments: {
+      text
+    }
+  }
+
+  return await handler(event, context)
+}
+
 const a_user_signs_up = async (password, name, email) => {
   const cognito = new AWS.CognitoIdentityServiceProvider()
 
@@ -166,12 +182,115 @@ const a_user_calls_getImageUploadUrl = async (user, extension, contentType) => {
   return url
 }
 
+const a_user_calls_tweet = async (user, text) => {
+  const tweet = `mutation tweet($text: String!) {
+    tweet(text: $text) {
+      id
+      profile {
+        id
+        name
+        screenName
+      }
+      createdAt
+      text
+      replies
+      likes
+      retweets
+    }
+  }`
+  const variables = {
+    text
+  }
+
+  const data = await GraphQL(process.env.API_URL, tweet, variables, user.accessToken)
+  const newTweet = data.tweet
+
+  console.log(`[${user.username}] - posted new tweet`)
+
+  return newTweet
+}
+
+const a_user_calls_getTweets = async (user, userId, limit, nextToken) => {
+  const getTweets = `query getTweets($userId: ID!, $limit: Int!, $nextToken: String) {
+    getTweets(userId: $userId, limit: $limit, nextToken: $nextToken) {
+      nextToken
+      tweets {
+        id
+        createdAt
+        profile {
+          id
+          name
+          screenName
+        }
+
+        ... on Tweet {          
+          text
+          replies
+          likes
+          retweets
+        }
+      }
+    }
+  }`
+  const variables = {
+    userId,
+    limit,
+    nextToken
+  }
+
+  const data = await GraphQL(process.env.API_URL, getTweets, variables, user.accessToken)
+  const result = data.getTweets
+
+  console.log(`[${user.username}] - posted new tweet`)
+
+  return result
+}
+
+const a_user_calls_getMyTimeline = async (user, limit, nextToken) => {
+  const getMyTimeline = `query getMyTimeline($limit: Int!, $nextToken: String) {
+    getMyTimeline(limit: $limit, nextToken: $nextToken) {
+      nextToken
+      tweets {
+        id
+        createdAt
+        profile {
+          id
+          name
+          screenName
+        }
+
+        ... on Tweet {          
+          text
+          replies
+          likes
+          retweets
+        }
+      }
+    }
+  }`
+  const variables = {
+    limit,
+    nextToken
+  }
+
+  const data = await GraphQL(process.env.API_URL, getMyTimeline, variables, user.accessToken)
+  const result = data.getMyTimeline
+
+  console.log(`[${user.username}] - fetched timeline`)
+
+  return result
+}
+
 module.exports = {
   we_invoke_confirmUserSignup,
   we_invoke_getImageUploadUrl,
+  we_invoke_tweet,
   a_user_signs_up,
   we_invoke_an_appsync_template,
   a_user_calls_getMyProfile,
   a_user_calls_editMyProfile,
-  a_user_calls_getImageUploadUrl
+  a_user_calls_getImageUploadUrl,
+  a_user_calls_tweet,
+  a_user_calls_getTweets,
+  a_user_calls_getMyTimeline
 }
